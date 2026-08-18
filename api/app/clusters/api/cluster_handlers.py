@@ -7,6 +7,7 @@ from app.clusters.infra.cluster_repository import ClusterRepository
 from app.clusters.core.cluster_service import ClusterService
 from app.clusters.api.cluster_dto import (
     ClusterCreate,
+    ClusterUpdate,
     ClusterResponse,
     ClusterResponseWithValidation,
     ClusterCompletedResponse,
@@ -81,7 +82,7 @@ def create_cluster(
 def update_cluster(
     organization_uuid: UUID,
     uuid: UUID,
-    cluster: ClusterCreate,
+    cluster: ClusterUpdate,
     service: ClusterService = Depends(get_cluster_service),
     ctx: OrganizationAccessContext = Depends(getOrganizationContext),
 ):

@@ -7,12 +7,14 @@ from app.clusters.infra.cluster_repository import ClusterRepository
 from app.clusters.infra.cluster_model import Cluster as ClusterModel
 from app.clusters.api.cluster_dto import (
     ClusterCreate,
+    ClusterUpdate,
     ClusterResponse,
     ClusterResponseWithValidation,
     ClusterCompletedResponse,
 )
 from app.clusters.core.cluster_validators import (
     validate_cluster_create_dto,
+    validate_cluster_update_dto,
     validate_cluster_exists,
     validate_environment_exists,
     ClusterConnectionError,
@@ -102,25 +104,23 @@ class ClusterService:
 
         return self.repository.create(cluster)
 
-    def update_cluster(self, uuid: UUID, dto: ClusterCreate) -> ClusterResponse:
+    def update_cluster(self, uuid: UUID, dto: ClusterUpdate) -> ClusterResponse:
         """Update an existing cluster."""
-        validate_cluster_create_dto(dto)
+        validate_cluster_update_dto(dto)
         validate_cluster_exists(self.repository, uuid)
         validate_environment_exists(self.repository, dto.environment_uuid)
 
-        # Validate Kubernetes connection
-        self._validate_cluster_connection(dto.api_address, dto.token)
-
         cluster = self.repository.find_by_uuid(uuid)
+        token = dto.token.strip() if dto.token and dto.token.strip() else cluster.token
+
+        # Validate Kubernetes connection with resolved credentials
+        self._validate_cluster_connection(dto.api_address, token)
+
         environment = self.repository.find_environment_by_uuid(dto.environment_uuid)
 
         cluster.name = dto.name
         cluster.api_address = dto.api_address
-        cluster.token = dto.token
-        cluster.private_gateway_namespace = dto.private_gateway_namespace or None
-        cluster.private_gateway_name = dto.private_gateway_name or None
-        cluster.public_gateway_namespace = dto.public_gateway_namespace or None
-        cluster.public_gateway_name = dto.public_gateway_name or None
+        cluster.token = token
         cluster.crossplane_available = dto.crossplane_available
         cluster.environment_id = environment.id
 

@@ -21,6 +21,14 @@ class ClusterCreate(ClusterBase):
     environment_uuid: UUID
 
 
+class ClusterUpdate(BaseModel):
+    name: str
+    api_address: str
+    token: Optional[str] = None
+    environment_uuid: UUID
+    crossplane_available: bool = False
+
+
 class ClusterResponse(ClusterBase):
     uuid: UUID
 

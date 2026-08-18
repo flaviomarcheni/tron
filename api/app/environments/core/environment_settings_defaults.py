@@ -34,19 +34,19 @@ DEFAULT_ENVIRONMENT_SETTINGS = [
     {
         "key": "crossplane_enabled",
         "value": False,
-        "description": "Enable Crossplane-managed AWS resources (SNS/SQS) for this environment.",
+        "description": "Enable Crossplane-managed resources for this environment.",
         "type": "boolean",
     },
     {
         "key": "crossplane_cluster_uuid",
         "value": "",
-        "description": "UUID of the cluster used for Crossplane messaging sync in this environment.",
+        "description": "UUID of the cluster used for Crossplane sync in this environment.",
         "type": "string",
     },
     {
         "key": "crossplane_aws_region",
         "value": "",
-        "description": "AWS region for Crossplane-managed messaging resources (e.g. us-east-1).",
+        "description": "AWS region for Crossplane-managed resources (e.g. us-east-1).",
         "type": "string",
     },
     {

@@ -3,7 +3,7 @@ import { X, Trash2, Plus, Info, Edit, CheckCircle, XCircle } from 'lucide-react'
 import { useClusters, useCreateCluster, useUpdateCluster, useDeleteCluster } from '../../features/clusters'
 import { useEnvironments } from '../../features/environments'
 import { useOrganization } from '../../contexts/OrganizationContext'
-import type { Cluster, ClusterCreate } from '../../features/clusters'
+import type { Cluster, ClusterCreate, ClusterUpdate } from '../../features/clusters'
 import { DataTable, Breadcrumbs, PageHeader } from '../../shared/components'
 
 function Clusters() {
@@ -108,21 +108,21 @@ function Clusters() {
       return
     }
 
-    if (!formData.token) {
+    if (!editingCluster && !formData.token) {
       setNotification({ type: 'error', message: 'Token is required' })
       setTimeout(() => setNotification(null), 5000)
       return
     }
 
     if (editingCluster) {
-      // Always send environment_uuid and token in update
-      // Gateway configuration is not editable after creation
-      const updateData: ClusterCreate = {
+      const updateData: ClusterUpdate = {
         name: formData.name,
         api_address: formData.api_address,
-        token: formData.token,
         environment_uuid: formData.environment_uuid,
         crossplane_available: formData.crossplane_available ?? false,
+      }
+      if (formData.token.trim()) {
+        updateData.token = formData.token.trim()
       }
       updateMutation.mutate({ uuid: editingCluster.uuid, data: updateData })
     } else {
@@ -416,11 +416,11 @@ function Clusters() {
                   onChange={(e) => setFormData({ ...formData, token: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-all text-sm"
                   placeholder="ServiceAccount token"
-                  required
+                  required={!editingCluster}
                 />
                 {editingCluster && (
                   <p className="mt-1 text-xs text-slate-500">
-                    Enter the token again. If you don't want to change it, use the same current token.
+                    Leave blank to keep the current token.
                   </p>
                 )}
               </div>
@@ -461,7 +461,7 @@ function Clusters() {
                   Crossplane available
                 </label>
                 <p className="mt-1 text-xs text-slate-500">
-                  Mark this cluster as eligible for Crossplane messaging sync in its environment.
+                  Mark this cluster as eligible for Crossplane-managed resources in its environment.
                 </p>
               </div>
 

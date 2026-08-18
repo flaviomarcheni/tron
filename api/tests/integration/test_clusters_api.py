@@ -248,6 +248,47 @@ def test_update_cluster_success(mock_k8s_client, client, admin_token, test_envir
     assert data["api_address"] == "https://k8s-updated.example.com"
 
 
+@patch('app.clusters.core.cluster_service.K8sClient')
+def test_update_cluster_without_token_preserves_existing(
+    mock_k8s_client, client, admin_token, test_environment
+):
+    """Test updating cluster fields without resubmitting token."""
+    mock_client_instance = MagicMock()
+    mock_client_instance.validate_connection.return_value = (
+        True,
+        {"message": "Connection successful"},
+    )
+    mock_k8s_client.return_value = mock_client_instance
+
+    create_response = client.post(
+        f"/organizations/{test_environment.organization.uuid}/clusters/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "name": "test-cluster",
+            "api_address": "https://k8s.example.com",
+            "token": "test-token-123",
+            "environment_uuid": str(test_environment.uuid),
+        },
+    )
+    cluster_uuid = create_response.json()["uuid"]
+
+    response = client.put(
+        f"/organizations/{test_environment.organization.uuid}/clusters/{cluster_uuid}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "name": "test-cluster",
+            "api_address": "https://k8s.example.com",
+            "environment_uuid": str(test_environment.uuid),
+            "crossplane_available": True,
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["crossplane_available"] is True
+    assert data["token"] == "test-token-123"
+
+
 def test_update_cluster_not_found(client, admin_token, test_environment):
     """Test updating non-existent cluster."""
     response = client.put(

@@ -50,3 +50,12 @@ export interface ClusterCreate {
   public_gateway_namespace?: string
   public_gateway_name?: string
 }
+
+export interface ClusterUpdate {
+  name: string
+  api_address: string
+  token?: string
+  environment_uuid: string
+  crossplane_available?: boolean
+}
+
