@@ -10,16 +10,20 @@ from app.environments.infra.environment_settings_repository import (
 )
 from app.environments.core.environment_settings_defaults import (
     DEFAULT_ENVIRONMENT_SETTINGS,
+    merge_missing_default_settings,
 )
+from app.environments.core.crossplane_settings import validate_crossplane_settings
 from app.environments.api.environment_dto import (
     EnvironmentCreate,
     Environment,
     EnvironmentWithClusters,
+    EnvironmentClusterSummary,
 )
 from app.environments.core.environment_validators import (
     validate_environment_create_dto,
     validate_environment_can_be_deleted,
 )
+from app.clusters.infra.cluster_repository import ClusterRepository
 
 
 class EnvironmentService:
@@ -146,7 +150,9 @@ class EnvironmentService:
                 settings=[],
             )
             self.settings_repository.create(row)
-        current = list(row.settings) if row.settings else []
+        current = merge_missing_default_settings(
+            list(row.settings) if row.settings else []
+        )
         keys_to_value = {
             k: v for k, v in settings_values.items() if k and not k.startswith("_")
         }
@@ -159,6 +165,14 @@ class EnvironmentService:
                 new_settings.append(copied)
             else:
                 new_settings.append(item)
+
+        cluster_repository = ClusterRepository(self.settings_repository.db)
+        validate_crossplane_settings(
+            new_settings,
+            environment.id,
+            cluster_repository.find_by_uuid,
+        )
+
         row.settings = new_settings
         self.settings_repository.update(row)
         return new_settings
@@ -210,10 +224,18 @@ class EnvironmentService:
             and environment.environment_settings.settings
         ):
             settings_list = environment.environment_settings.settings
+        settings_list = merge_missing_default_settings(settings_list)
         return EnvironmentWithClusters(
             uuid=environment.uuid,
             name=environment.name,
-            clusters=[cluster.name for cluster in environment.clusters],
+            clusters=[
+                EnvironmentClusterSummary(
+                    uuid=cluster.uuid,
+                    name=cluster.name,
+                    crossplane_available=bool(cluster.crossplane_available),
+                )
+                for cluster in environment.clusters
+            ],
             settings=settings_list,
             created_at=environment.created_at.isoformat(),
             updated_at=environment.updated_at.isoformat(),

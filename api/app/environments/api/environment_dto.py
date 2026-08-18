@@ -43,9 +43,15 @@ class EnvironmentSettingsUpdate(BaseModel):
         return self.model_dump(exclude_none=True)
 
 
+class EnvironmentClusterSummary(BaseModel):
+    uuid: UUID
+    name: str
+    crossplane_available: bool = False
+
+
 class EnvironmentWithClusters(Environment):
     name: str
-    clusters: list
+    clusters: list[EnvironmentClusterSummary]
     settings: list
     created_at: str
     updated_at: str

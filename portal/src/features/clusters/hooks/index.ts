@@ -1,5 +1,6 @@
 export {
   useClusters,
+  useClustersByEnvironment,
   useCluster,
   useCreateCluster,
   useUpdateCluster,

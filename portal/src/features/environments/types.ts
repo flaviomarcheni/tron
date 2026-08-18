@@ -5,12 +5,18 @@ export interface EnvironmentSettingItem {
   type: string
 }
 
+export interface EnvironmentClusterSummary {
+  uuid: string
+  name: string
+  crossplane_available: boolean
+}
+
 export interface Environment {
   uuid: string
   name: string
   created_at: string
   updated_at: string
-  clusters?: string[]
+  clusters?: EnvironmentClusterSummary[]
   settings?: EnvironmentSettingItem[]
 }
 

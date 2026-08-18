@@ -121,6 +121,7 @@ class ClusterService:
         cluster.private_gateway_name = dto.private_gateway_name or None
         cluster.public_gateway_namespace = dto.public_gateway_namespace or None
         cluster.public_gateway_name = dto.public_gateway_name or None
+        cluster.crossplane_available = dto.crossplane_available
         cluster.environment_id = environment.id
 
         return self.repository.update(cluster)
@@ -212,6 +213,7 @@ class ClusterService:
             private_gateway_name=dto.private_gateway_name or None,
             public_gateway_namespace=dto.public_gateway_namespace or None,
             public_gateway_name=dto.public_gateway_name or None,
+            crossplane_available=dto.crossplane_available,
             environment_id=environment_id,
         )
 
@@ -242,6 +244,7 @@ class ClusterService:
             uuid=cluster.uuid,
             name=cluster.name,
             api_address=cluster.api_address,
+            crossplane_available=bool(cluster.crossplane_available),
             environment=cluster.environment,
             detail=connection_message,
             gateway={
@@ -279,6 +282,7 @@ class ClusterService:
             uuid=cluster.uuid,
             name=cluster.name,
             api_address=cluster.api_address,
+            crossplane_available=bool(cluster.crossplane_available),
             available_cpu=available_cpu,
             available_memory=available_memory,
             environment=cluster.environment,

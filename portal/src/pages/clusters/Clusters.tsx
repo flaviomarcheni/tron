@@ -22,6 +22,7 @@ function Clusters() {
     api_address: '',
     token: '',
     environment_uuid: '',
+    crossplane_available: false,
     private_gateway_namespace: '',
     private_gateway_name: '',
     public_gateway_namespace: '',
@@ -38,7 +39,7 @@ function Clusters() {
       setNotification({ type: 'success', message: 'Cluster created successfully' })
       setIsOpen(false)
       setEditingCluster(null)
-      setFormData({ name: '', api_address: '', token: '', environment_uuid: '', private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
+      setFormData({ name: '', api_address: '', token: '', environment_uuid: '', crossplane_available: false, private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
       setTimeout(() => setNotification(null), 5000)
       createMutation.reset()
     }
@@ -61,7 +62,7 @@ function Clusters() {
       setNotification({ type: 'success', message: 'Cluster updated successfully' })
       setIsOpen(false)
       setEditingCluster(null)
-      setFormData({ name: '', api_address: '', token: '', environment_uuid: '', private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
+      setFormData({ name: '', api_address: '', token: '', environment_uuid: '', crossplane_available: false, private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
       setTimeout(() => setNotification(null), 5000)
       updateMutation.reset()
     }
@@ -121,6 +122,7 @@ function Clusters() {
         api_address: formData.api_address,
         token: formData.token,
         environment_uuid: formData.environment_uuid,
+        crossplane_available: formData.crossplane_available ?? false,
       }
       updateMutation.mutate({ uuid: editingCluster.uuid, data: updateData })
     } else {
@@ -141,8 +143,9 @@ function Clusters() {
     setFormData({
       name: cluster.name,
       api_address: cluster.api_address,
-      token: '', // Token is not returned by API for security
+      token: '',
       environment_uuid: environmentUuid,
+      crossplane_available: cluster.crossplane_available ?? false,
       private_gateway_namespace: cluster.gateway?.reference?.private?.namespace || '',
       private_gateway_name: cluster.gateway?.reference?.private?.name || '',
       public_gateway_namespace: cluster.gateway?.reference?.public?.namespace || '',
@@ -154,7 +157,7 @@ function Clusters() {
   const handleCloseModal = () => {
     setIsOpen(false)
     setEditingCluster(null)
-    setFormData({ name: '', api_address: '', token: '', environment_uuid: '' })
+    setFormData({ name: '', api_address: '', token: '', environment_uuid: '', crossplane_available: false })
   }
 
   const handleDelete = (uuid: string) => {
@@ -232,7 +235,7 @@ function Clusters() {
         <button
           onClick={() => {
             setEditingCluster(null)
-            setFormData({ name: '', api_address: '', token: '', environment_uuid: '', private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
+            setFormData({ name: '', api_address: '', token: '', environment_uuid: '', crossplane_available: false, private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
             setIsOpen(true)
           }}
           className="btn-primary flex items-center gap-2"
@@ -444,6 +447,22 @@ function Clusters() {
                     Environment cannot be changed after creation.
                   </p>
                 )}
+              </div>
+              <div>
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={formData.crossplane_available ?? false}
+                    onChange={(e) =>
+                      setFormData({ ...formData, crossplane_available: e.target.checked })
+                    }
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Crossplane available
+                </label>
+                <p className="mt-1 text-xs text-slate-500">
+                  Mark this cluster as eligible for Crossplane messaging sync in its environment.
+                </p>
               </div>
 
               <div className="flex justify-end gap-2.5 pt-3">

@@ -8,6 +8,7 @@ class ClusterBase(BaseModel):
     name: str
     api_address: str
     token: str
+    crossplane_available: bool = False
     # Private gateway - used for visibility "private"
     private_gateway_namespace: Optional[str] = None
     private_gateway_name: Optional[str] = None
@@ -54,6 +55,7 @@ class ClusterResponseWithValidation(BaseModel):
     uuid: UUID
     name: str
     api_address: str
+    crossplane_available: bool = False
     environment: Environment
     detail: dict
     gateway: GatewayFeatures
@@ -67,6 +69,7 @@ class ClusterCompletedResponse(BaseModel):
     uuid: UUID
     name: str
     api_address: str
+    crossplane_available: bool = False
     available_cpu: Optional[int]
     available_memory: Optional[int]
     environment: Environment

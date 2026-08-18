@@ -31,7 +31,45 @@ DEFAULT_ENVIRONMENT_SETTINGS = [
         "description": "Maximum number of pods per component in this environment.",
         "type": "number",
     },
+    {
+        "key": "crossplane_enabled",
+        "value": False,
+        "description": "Enable Crossplane-managed AWS resources (SNS/SQS) for this environment.",
+        "type": "boolean",
+    },
+    {
+        "key": "crossplane_cluster_uuid",
+        "value": "",
+        "description": "UUID of the cluster used for Crossplane messaging sync in this environment.",
+        "type": "string",
+    },
+    {
+        "key": "crossplane_aws_region",
+        "value": "",
+        "description": "AWS region for Crossplane-managed messaging resources (e.g. us-east-1).",
+        "type": "string",
+    },
+    {
+        "key": "crossplane_provider_config",
+        "value": "",
+        "description": "ClusterProviderConfig name for Crossplane AWS provider in this environment.",
+        "type": "string",
+    },
 ]
+
+
+def merge_missing_default_settings(settings_list: list | None) -> list:
+    """Append default setting items missing from an existing environment settings list."""
+    current = list(settings_list) if settings_list else []
+    existing_keys = {
+        item.get("key")
+        for item in current
+        if isinstance(item, dict) and item.get("key")
+    }
+    for default in DEFAULT_ENVIRONMENT_SETTINGS:
+        if default["key"] not in existing_keys:
+            current.append(dict(default))
+    return current
 
 # Keys used for component validation (CPU, memory, replicas)
 ENVIRONMENT_LIMIT_KEYS = (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, Trash2, Plus, Settings } from 'lucide-react'
 import { useEnvironments, useCreateEnvironment, useDeleteEnvironment, useUpdateEnvironmentSettings, useResetEnvironmentSettings } from '../../features/environments'
+import { useClustersByEnvironment } from '../../features/clusters'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import type { Environment, EnvironmentCreate, EnvironmentSettingItem } from '../../features/environments'
 import { DataTable, Breadcrumbs, PageHeader } from '../../shared/components'
@@ -96,6 +97,14 @@ function Environments() {
     setSelectedEnvForSettings(null)
     setSettingsSearch('')
   }
+
+  const { data: environmentClusters = [] } = useClustersByEnvironment(
+    selectedOrganizationUuid ?? undefined,
+    selectedEnvForSettings?.uuid
+  )
+
+  const crossplaneEnabled = settingsDraft.find((s) => s.key === 'crossplane_enabled')?.value === true
+  const availableCrossplaneClusters = environmentClusters.filter((c) => c.crossplane_available)
 
   const filteredSettings = useMemo(() => {
     if (!settingsDraft.length) return []
@@ -326,7 +335,43 @@ function Environments() {
                           {item.description || '—'}
                         </td>
                         <td className="py-2 px-3">
-                          {item.type === 'number' && (
+                          {item.key === 'crossplane_cluster_uuid' ? (
+                            <select
+                              value={String(item.value || '')}
+                              onChange={(e) =>
+                                handleSettingValueChange(item.key, e.target.value)
+                              }
+                              disabled={!crossplaneEnabled}
+                              className="w-full max-w-[220px] px-2 py-1 border border-slate-300 rounded text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                            >
+                              <option value="">
+                                {crossplaneEnabled
+                                  ? availableCrossplaneClusters.length
+                                    ? 'Select cluster'
+                                    : 'No Crossplane clusters available'
+                                  : 'Enable Crossplane first'}
+                              </option>
+                              {availableCrossplaneClusters.map((cluster) => (
+                                <option key={cluster.uuid} value={cluster.uuid}>
+                                  {cluster.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : item.type === 'boolean' ? (
+                            <label className="inline-flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={item.value === true}
+                                onChange={(e) =>
+                                  handleSettingValueChange(item.key, e.target.checked)
+                                }
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-slate-600 text-xs">
+                                {item.value === true ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </label>
+                          ) : item.type === 'number' && (
                             <input
                               type="number"
                               value={typeof item.value === 'number' ? item.value : ''}
@@ -352,7 +397,7 @@ function Environments() {
                               className="w-full max-w-[180px] px-2 py-1 border border-slate-300 rounded text-sm"
                             />
                           )}
-                          {item.type !== 'number' && item.type !== 'list' && (
+                          {item.type !== 'number' && item.type !== 'list' && item.type !== 'boolean' && item.key !== 'crossplane_cluster_uuid' && (
                             <input
                               type="text"
                               value={String(item.value)}

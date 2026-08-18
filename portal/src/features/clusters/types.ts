@@ -24,6 +24,7 @@ export interface Cluster {
   uuid: string
   name: string
   api_address: string
+  crossplane_available?: boolean
   environment_uuid: string
   environment?: Environment
   detail?: {
@@ -43,6 +44,7 @@ export interface ClusterCreate {
   api_address: string
   token: string
   environment_uuid: string
+  crossplane_available?: boolean
   private_gateway_namespace?: string
   private_gateway_name?: string
   public_gateway_namespace?: string

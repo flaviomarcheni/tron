@@ -1,4 +1,12 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ForeignKey,
+    UniqueConstraint,
+    Boolean,
+)
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.shared.database.database import Base
@@ -26,6 +34,10 @@ class Cluster(Base):
     # Public gateway - used for visibility "public"
     public_gateway_namespace = Column(String, nullable=True)
     public_gateway_name = Column(String, nullable=True)
+
+    crossplane_available = Column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     environment_id = Column(Integer, ForeignKey("environments.id"), nullable=False)
     environment = relationship("Environment", back_populates="clusters")
