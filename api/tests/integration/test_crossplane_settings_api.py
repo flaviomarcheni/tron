@@ -1,4 +1,4 @@
-"""Integration tests for Crossplane environment settings."""
+"""Integration tests for environment Crossplane config API."""
 import pytest
 from unittest.mock import patch, MagicMock
 from fastapi import status
@@ -58,59 +58,80 @@ def crossplane_cluster(test_db, test_environment_with_settings):
     return cluster
 
 
-def test_update_crossplane_settings_success(
+def _crossplane_url(organization, environment):
+    return (
+        f"/organizations/{organization.uuid}/environments/{environment.uuid}/crossplane"
+    )
+
+
+def test_get_crossplane_config_defaults(
+    client,
+    admin_token,
+    test_organization,
+    test_environment_with_settings,
+):
+    response = client.get(
+        _crossplane_url(test_organization, test_environment_with_settings),
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["enabled"] is False
+    assert data["cluster_uuid"] is None
+    assert data["aws_region"] == ""
+    assert data["provider_config"] == ""
+
+
+def test_update_crossplane_config_success(
     client,
     admin_token,
     test_organization,
     test_environment_with_settings,
     crossplane_cluster,
 ):
-    org_uuid = str(test_organization.uuid)
-    env_uuid = str(test_environment_with_settings.uuid)
-
     response = client.put(
-        f"/organizations/{org_uuid}/environments/{env_uuid}/settings",
+        _crossplane_url(test_organization, test_environment_with_settings),
         headers={"Authorization": f"Bearer {admin_token}"},
         json={
-            "crossplane_enabled": True,
-            "crossplane_cluster_uuid": str(crossplane_cluster.uuid),
-            "crossplane_aws_region": "us-east-1",
-            "crossplane_provider_config": "floci",
+            "enabled": True,
+            "cluster_uuid": str(crossplane_cluster.uuid),
+            "aws_region": "us-east-1",
+            "provider_config": "floci",
         },
     )
 
     assert response.status_code == status.HTTP_200_OK
-    settings = {item["key"]: item["value"] for item in response.json()}
-    assert settings["crossplane_enabled"] is True
-    assert settings["crossplane_aws_region"] == "us-east-1"
+    data = response.json()
+    assert data["enabled"] is True
+    assert data["cluster_uuid"] == str(crossplane_cluster.uuid)
+    assert data["aws_region"] == "us-east-1"
+    assert data["provider_config"] == "floci"
 
 
-def test_update_crossplane_settings_invalid_region(
+def test_update_crossplane_config_invalid_region(
     client,
     admin_token,
     test_organization,
     test_environment_with_settings,
     crossplane_cluster,
 ):
-    org_uuid = str(test_organization.uuid)
-    env_uuid = str(test_environment_with_settings.uuid)
-
     response = client.put(
-        f"/organizations/{org_uuid}/environments/{env_uuid}/settings",
+        _crossplane_url(test_organization, test_environment_with_settings),
         headers={"Authorization": f"Bearer {admin_token}"},
         json={
-            "crossplane_enabled": True,
-            "crossplane_cluster_uuid": str(crossplane_cluster.uuid),
-            "crossplane_aws_region": "not-a-region",
-            "crossplane_provider_config": "floci",
+            "enabled": True,
+            "cluster_uuid": str(crossplane_cluster.uuid),
+            "aws_region": "not-a-region",
+            "provider_config": "floci",
         },
     )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "crossplane_aws_region" in response.json()["detail"]
+    assert "aws_region" in response.json()["detail"]
 
 
-def test_update_crossplane_settings_cluster_not_available(
+def test_update_crossplane_config_cluster_not_available(
     client,
     admin_token,
     test_organization,
@@ -130,17 +151,14 @@ def test_update_crossplane_settings_cluster_not_available(
     )
     test_db.commit()
 
-    org_uuid = str(test_organization.uuid)
-    env_uuid = str(test_environment_with_settings.uuid)
-
     response = client.put(
-        f"/organizations/{org_uuid}/environments/{env_uuid}/settings",
+        _crossplane_url(test_organization, test_environment_with_settings),
         headers={"Authorization": f"Bearer {admin_token}"},
         json={
-            "crossplane_enabled": True,
-            "crossplane_cluster_uuid": str(cluster.uuid),
-            "crossplane_aws_region": "us-east-1",
-            "crossplane_provider_config": "floci",
+            "enabled": True,
+            "cluster_uuid": str(cluster.uuid),
+            "aws_region": "us-east-1",
+            "provider_config": "floci",
         },
     )
 
@@ -148,7 +166,7 @@ def test_update_crossplane_settings_cluster_not_available(
     assert "crossplane_available" in response.json()["detail"]
 
 
-def test_environment_get_returns_cluster_objects(
+def test_environment_settings_do_not_include_crossplane_keys(
     client,
     admin_token,
     test_organization,
@@ -171,10 +189,10 @@ def test_environment_get_returns_cluster_objects(
     assert cluster["name"] == crossplane_cluster.name
     assert cluster["crossplane_available"] is True
     setting_keys = {item["key"] for item in data["settings"]}
-    assert "crossplane_enabled" in setting_keys
-    assert "crossplane_cluster_uuid" in setting_keys
-    assert "crossplane_aws_region" in setting_keys
-    assert "crossplane_provider_config" in setting_keys
+    assert "crossplane_enabled" not in setting_keys
+    assert "crossplane_cluster_uuid" not in setting_keys
+    assert "crossplane_aws_region" not in setting_keys
+    assert "crossplane_provider_config" not in setting_keys
 
 
 @patch("app.clusters.core.cluster_service.K8sClient")

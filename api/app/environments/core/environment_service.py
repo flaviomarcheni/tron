@@ -12,7 +12,6 @@ from app.environments.core.environment_settings_defaults import (
     DEFAULT_ENVIRONMENT_SETTINGS,
     merge_missing_default_settings,
 )
-from app.environments.core.crossplane_settings import validate_crossplane_settings
 from app.environments.api.environment_dto import (
     EnvironmentCreate,
     Environment,
@@ -23,7 +22,6 @@ from app.environments.core.environment_validators import (
     validate_environment_create_dto,
     validate_environment_can_be_deleted,
 )
-from app.clusters.infra.cluster_repository import ClusterRepository
 
 
 class EnvironmentService:
@@ -165,13 +163,6 @@ class EnvironmentService:
                 new_settings.append(copied)
             else:
                 new_settings.append(item)
-
-        cluster_repository = ClusterRepository(self.settings_repository.db)
-        validate_crossplane_settings(
-            new_settings,
-            environment.id,
-            cluster_repository.find_by_uuid,
-        )
 
         row.settings = new_settings
         self.settings_repository.update(row)

@@ -1,10 +1,25 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, Trash2, Plus, Settings } from 'lucide-react'
-import { useEnvironments, useCreateEnvironment, useDeleteEnvironment, useUpdateEnvironmentSettings, useResetEnvironmentSettings } from '../../features/environments'
-import { useClustersByEnvironment } from '../../features/clusters'
+import { X, Trash2, Plus, Settings, Cloud } from 'lucide-react'
+import {
+  useEnvironments,
+  useEnvironment,
+  useCreateEnvironment,
+  useDeleteEnvironment,
+  useUpdateEnvironmentSettings,
+  useResetEnvironmentSettings,
+} from '../../features/environments'
+import { useCrossplaneConfig, useUpdateCrossplaneConfig } from '../../features/crossplane'
+import type { EnvironmentCrossplaneConfig } from '../../features/crossplane'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import type { Environment, EnvironmentCreate, EnvironmentSettingItem } from '../../features/environments'
 import { DataTable, Breadcrumbs, PageHeader } from '../../shared/components'
+
+const EMPTY_CROSSPLANE_CONFIG: EnvironmentCrossplaneConfig = {
+  enabled: false,
+  cluster_uuid: null,
+  aws_region: '',
+  provider_config: '',
+}
 
 function Environments() {
   const [isOpen, setIsOpen] = useState(false)
@@ -22,6 +37,10 @@ function Environments() {
   const [selectedEnvForSettings, setSelectedEnvForSettings] = useState<Environment | null>(null)
   const [settingsSearch, setSettingsSearch] = useState('')
   const [settingsDraft, setSettingsDraft] = useState<EnvironmentSettingItem[]>([])
+
+  const [crossplaneModalOpen, setCrossplaneModalOpen] = useState(false)
+  const [selectedEnvForCrossplane, setSelectedEnvForCrossplane] = useState<Environment | null>(null)
+  const [crossplaneDraft, setCrossplaneDraft] = useState<EnvironmentCrossplaneConfig>(EMPTY_CROSSPLANE_CONFIG)
 
   const [formData, setFormData] = useState<EnvironmentCreate>({
     name: '',
@@ -98,13 +117,61 @@ function Environments() {
     setSettingsSearch('')
   }
 
-  const { data: environmentClusters = [] } = useClustersByEnvironment(
+  const updateCrossplaneMutation = useUpdateCrossplaneConfig(selectedOrganizationUuid)
+  const { data: envForCrossplane } = useEnvironment(
     selectedOrganizationUuid ?? undefined,
-    selectedEnvForSettings?.uuid
+    selectedEnvForCrossplane?.uuid
+  )
+  const { data: loadedCrossplaneConfig } = useCrossplaneConfig(
+    selectedOrganizationUuid ?? undefined,
+    selectedEnvForCrossplane?.uuid
   )
 
-  const crossplaneEnabled = settingsDraft.find((s) => s.key === 'crossplane_enabled')?.value === true
-  const availableCrossplaneClusters = environmentClusters.filter((c) => c.crossplane_available)
+  useEffect(() => {
+    if (loadedCrossplaneConfig) {
+      setCrossplaneDraft(loadedCrossplaneConfig)
+    }
+  }, [loadedCrossplaneConfig])
+
+  const availableCrossplaneClusters = (envForCrossplane?.clusters ?? []).filter(
+    (cluster) => cluster.crossplane_available
+  )
+
+  const openCrossplaneModal = (env: Environment) => {
+    setSelectedEnvForCrossplane(env)
+    setCrossplaneDraft(EMPTY_CROSSPLANE_CONFIG)
+    setCrossplaneModalOpen(true)
+  }
+
+  const closeCrossplaneModal = () => {
+    setCrossplaneModalOpen(false)
+    setSelectedEnvForCrossplane(null)
+    setCrossplaneDraft(EMPTY_CROSSPLANE_CONFIG)
+    updateCrossplaneMutation.reset()
+  }
+
+  const handleSaveCrossplane = () => {
+    if (!selectedEnvForCrossplane) return
+    updateCrossplaneMutation.mutate(
+      { environmentUuid: selectedEnvForCrossplane.uuid, config: crossplaneDraft },
+      {
+        onSuccess: () => {
+          setNotification({ type: 'success', message: 'Crossplane config saved successfully' })
+          closeCrossplaneModal()
+          setTimeout(() => setNotification(null), 5000)
+        },
+        onError: (err: unknown) => {
+          setNotification({
+            type: 'error',
+            message:
+              (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+              'Error saving Crossplane config',
+          })
+          setTimeout(() => setNotification(null), 5000)
+        },
+      }
+    )
+  }
 
   const filteredSettings = useMemo(() => {
     if (!settingsDraft.length) return []
@@ -284,6 +351,11 @@ function Environments() {
             onClick: () => openSettingsModal(env),
           },
           {
+            label: 'Crossplane',
+            icon: <Cloud size={14} />,
+            onClick: () => openCrossplaneModal(env),
+          },
+          {
             label: 'Delete',
             icon: <Trash2 size={14} />,
             onClick: () => handleDelete(env.uuid),
@@ -335,29 +407,7 @@ function Environments() {
                           {item.description || '—'}
                         </td>
                         <td className="py-2 px-3">
-                          {item.key === 'crossplane_cluster_uuid' ? (
-                            <select
-                              value={String(item.value || '')}
-                              onChange={(e) =>
-                                handleSettingValueChange(item.key, e.target.value)
-                              }
-                              disabled={!crossplaneEnabled}
-                              className="w-full max-w-[220px] px-2 py-1 border border-slate-300 rounded text-sm disabled:bg-slate-100 disabled:text-slate-400"
-                            >
-                              <option value="">
-                                {crossplaneEnabled
-                                  ? availableCrossplaneClusters.length
-                                    ? 'Select cluster'
-                                    : 'No Crossplane clusters available'
-                                  : 'Enable Crossplane first'}
-                              </option>
-                              {availableCrossplaneClusters.map((cluster) => (
-                                <option key={cluster.uuid} value={cluster.uuid}>
-                                  {cluster.name}
-                                </option>
-                              ))}
-                            </select>
-                          ) : item.type === 'boolean' ? (
+                          {item.type === 'boolean' ? (
                             <label className="inline-flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -397,7 +447,7 @@ function Environments() {
                               className="w-full max-w-[180px] px-2 py-1 border border-slate-300 rounded text-sm"
                             />
                           )}
-                          {item.type !== 'number' && item.type !== 'list' && item.type !== 'boolean' && item.key !== 'crossplane_cluster_uuid' && (
+                          {item.type !== 'number' && item.type !== 'list' && item.type !== 'boolean' && (
                             <input
                               type="text"
                               value={String(item.value)}
@@ -439,6 +489,115 @@ function Environments() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-soft text-sm font-medium disabled:opacity-50"
                 >
                   {updateSettingsMutation.isPending ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {crossplaneModalOpen && selectedEnvForCrossplane && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-soft-lg max-w-md w-full border border-slate-200/60 animate-zoom-in">
+            <div className="flex items-center justify-between p-5 border-b border-slate-200/60 bg-slate-50/50">
+              <h2 className="text-lg font-semibold text-slate-800">
+                Crossplane — {selectedEnvForCrossplane.name}
+              </h2>
+              <button
+                onClick={closeCrossplaneModal}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-white rounded-md transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={crossplaneDraft.enabled}
+                  onChange={(e) =>
+                    setCrossplaneDraft({ ...crossplaneDraft, enabled: e.target.checked })
+                  }
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                Enable Crossplane for this environment
+              </label>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Cluster</label>
+                <select
+                  value={crossplaneDraft.cluster_uuid ?? ''}
+                  onChange={(e) =>
+                    setCrossplaneDraft({
+                      ...crossplaneDraft,
+                      cluster_uuid: e.target.value || null,
+                    })
+                  }
+                  disabled={!crossplaneDraft.enabled}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  <option value="">
+                    {crossplaneDraft.enabled
+                      ? availableCrossplaneClusters.length
+                        ? 'Select cluster'
+                        : 'No Crossplane clusters available'
+                      : 'Enable Crossplane first'}
+                  </option>
+                  {availableCrossplaneClusters.map((cluster) => (
+                    <option key={cluster.uuid} value={cluster.uuid}>
+                      {cluster.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  Only clusters marked as Crossplane available in this environment.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">AWS region</label>
+                <input
+                  type="text"
+                  value={crossplaneDraft.aws_region}
+                  onChange={(e) =>
+                    setCrossplaneDraft({ ...crossplaneDraft, aws_region: e.target.value })
+                  }
+                  disabled={!crossplaneDraft.enabled}
+                  placeholder="us-east-1"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Provider config
+                </label>
+                <input
+                  type="text"
+                  value={crossplaneDraft.provider_config}
+                  onChange={(e) =>
+                    setCrossplaneDraft({ ...crossplaneDraft, provider_config: e.target.value })
+                  }
+                  disabled={!crossplaneDraft.enabled}
+                  placeholder="default"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  ClusterProviderConfig name used by Crossplane in this environment.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={closeCrossplaneModal}
+                  className="px-4 py-2 text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCrossplane}
+                  disabled={updateCrossplaneMutation.isPending}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-soft text-sm font-medium disabled:opacity-50"
+                >
+                  {updateCrossplaneMutation.isPending ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </div>
