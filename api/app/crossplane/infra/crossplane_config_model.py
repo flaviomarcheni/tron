@@ -39,6 +39,7 @@ class EnvironmentCrossplaneConfig(Base):
         nullable=True,
     )
     aws_region = Column(String, nullable=False, default="", server_default="")
+    aws_account_id = Column(String, nullable=False, default="", server_default="")
     provider_config = Column(String, nullable=False, default="", server_default="")
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

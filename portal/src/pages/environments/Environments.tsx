@@ -18,6 +18,7 @@ const EMPTY_CROSSPLANE_CONFIG: EnvironmentCrossplaneConfig = {
   enabled: false,
   cluster_uuid: null,
   aws_region: '',
+  aws_account_id: '',
   provider_config: '',
 }
 
@@ -562,6 +563,21 @@ function Environments() {
                   }
                   disabled={!crossplaneDraft.enabled}
                   placeholder="us-east-1"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-100 disabled:text-slate-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  AWS account ID
+                </label>
+                <input
+                  type="text"
+                  value={crossplaneDraft.aws_account_id}
+                  onChange={(e) =>
+                    setCrossplaneDraft({ ...crossplaneDraft, aws_account_id: e.target.value })
+                  }
+                  disabled={!crossplaneDraft.enabled}
+                  placeholder="000000000000"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:bg-slate-100 disabled:text-slate-400"
                 />
               </div>

@@ -80,6 +80,7 @@ def test_get_crossplane_config_defaults(
     assert data["enabled"] is False
     assert data["cluster_uuid"] is None
     assert data["aws_region"] == ""
+    assert data["aws_account_id"] == ""
     assert data["provider_config"] == ""
 
 
@@ -97,6 +98,7 @@ def test_update_crossplane_config_success(
             "enabled": True,
             "cluster_uuid": str(crossplane_cluster.uuid),
             "aws_region": "us-east-1",
+            "aws_account_id": "000000000000",
             "provider_config": "floci",
         },
     )
@@ -106,6 +108,7 @@ def test_update_crossplane_config_success(
     assert data["enabled"] is True
     assert data["cluster_uuid"] == str(crossplane_cluster.uuid)
     assert data["aws_region"] == "us-east-1"
+    assert data["aws_account_id"] == "000000000000"
     assert data["provider_config"] == "floci"
 
 
@@ -123,6 +126,7 @@ def test_update_crossplane_config_invalid_region(
             "enabled": True,
             "cluster_uuid": str(crossplane_cluster.uuid),
             "aws_region": "not-a-region",
+            "aws_account_id": "000000000000",
             "provider_config": "floci",
         },
     )
@@ -158,6 +162,7 @@ def test_update_crossplane_config_cluster_not_available(
             "enabled": True,
             "cluster_uuid": str(cluster.uuid),
             "aws_region": "us-east-1",
+            "aws_account_id": "000000000000",
             "provider_config": "floci",
         },
     )
@@ -193,6 +198,7 @@ def test_environment_settings_do_not_include_crossplane_keys(
     assert "crossplane_cluster_uuid" not in setting_keys
     assert "crossplane_aws_region" not in setting_keys
     assert "crossplane_provider_config" not in setting_keys
+    assert "crossplane_aws_account_id" not in setting_keys
 
 
 @patch("app.clusters.core.cluster_service.K8sClient")

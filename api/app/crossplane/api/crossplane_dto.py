@@ -7,6 +7,7 @@ class CrossplaneConfigUpdate(BaseModel):
     enabled: bool = False
     cluster_uuid: UUID | None = None
     aws_region: str = ""
+    aws_account_id: str = ""
     provider_config: str = ""
 
     @field_validator("cluster_uuid", mode="before")
@@ -16,7 +17,7 @@ class CrossplaneConfigUpdate(BaseModel):
             return None
         return value
 
-    @field_validator("aws_region", "provider_config", mode="before")
+    @field_validator("aws_region", "aws_account_id", "provider_config", mode="before")
     @classmethod
     def none_string_to_empty(cls, value):
         if value is None:
@@ -28,6 +29,7 @@ class CrossplaneConfigResponse(BaseModel):
     enabled: bool = False
     cluster_uuid: UUID | None = None
     aws_region: str = ""
+    aws_account_id: str = ""
     provider_config: str = ""
 
     model_config = ConfigDict(from_attributes=True)

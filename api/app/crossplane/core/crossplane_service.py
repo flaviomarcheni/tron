@@ -47,6 +47,7 @@ class CrossplaneService:
             dto.enabled,
             dto.cluster_uuid,
             dto.aws_region,
+            dto.aws_account_id,
             dto.provider_config,
             environment.id,
             self.get_cluster_by_uuid,
@@ -54,11 +55,13 @@ class CrossplaneService:
 
         row = self.repository.find_by_environment_id(environment.id)
         aws_region = dto.aws_region.strip()
+        aws_account_id = dto.aws_account_id.strip()
         provider_config = dto.provider_config.strip()
         if row:
             row.enabled = dto.enabled
             row.cluster_uuid = dto.cluster_uuid
             row.aws_region = aws_region
+            row.aws_account_id = aws_account_id
             row.provider_config = provider_config
             saved = self.repository.update(row)
         else:
@@ -70,6 +73,7 @@ class CrossplaneService:
                     enabled=dto.enabled,
                     cluster_uuid=dto.cluster_uuid,
                     aws_region=aws_region,
+                    aws_account_id=aws_account_id,
                     provider_config=provider_config,
                 )
             )
@@ -86,6 +90,7 @@ class CrossplaneService:
             row.enabled,
             row.cluster_uuid,
             row.aws_region or "",
+            row.aws_account_id or "",
             row.provider_config or "",
             environment.id,
             self.get_cluster_by_uuid,
@@ -110,5 +115,6 @@ class CrossplaneService:
             enabled=bool(row.enabled),
             cluster_uuid=row.cluster_uuid,
             aws_region=row.aws_region or "",
+            aws_account_id=row.aws_account_id or "",
             provider_config=row.provider_config or "",
         )

@@ -26,6 +26,7 @@ def test_validate_disabled_requires_no_fields():
         enabled=False,
         cluster_uuid=None,
         aws_region="",
+        aws_account_id="",
         provider_config="",
         environment_id=1,
         get_cluster_by_uuid=lambda _: None,
@@ -38,7 +39,34 @@ def test_validate_enabled_missing_provider_config():
             enabled=True,
             cluster_uuid=uuid4(),
             aws_region="us-east-1",
+            aws_account_id="000000000000",
             provider_config="",
+            environment_id=1,
+            get_cluster_by_uuid=lambda _: _cluster(1),
+        )
+
+
+def test_validate_enabled_missing_aws_account_id():
+    with pytest.raises(ValueError, match="aws_account_id"):
+        validate_crossplane_config(
+            enabled=True,
+            cluster_uuid=uuid4(),
+            aws_region="us-east-1",
+            aws_account_id="",
+            provider_config="default",
+            environment_id=1,
+            get_cluster_by_uuid=lambda _: _cluster(1),
+        )
+
+
+def test_validate_enabled_invalid_aws_account_id():
+    with pytest.raises(ValueError, match="aws_account_id"):
+        validate_crossplane_config(
+            enabled=True,
+            cluster_uuid=uuid4(),
+            aws_region="us-east-1",
+            aws_account_id="not-valid",
+            provider_config="default",
             environment_id=1,
             get_cluster_by_uuid=lambda _: _cluster(1),
         )
@@ -50,6 +78,7 @@ def test_validate_enabled_missing_cluster_uuid():
             enabled=True,
             cluster_uuid=None,
             aws_region="us-east-1",
+            aws_account_id="000000000000",
             provider_config="floci",
             environment_id=1,
             get_cluster_by_uuid=lambda _: None,
@@ -62,6 +91,7 @@ def test_validate_enabled_invalid_aws_region():
             enabled=True,
             cluster_uuid=uuid4(),
             aws_region="invalid",
+            aws_account_id="000000000000",
             provider_config="floci",
             environment_id=1,
             get_cluster_by_uuid=lambda _: _cluster(1),
@@ -75,6 +105,7 @@ def test_validate_enabled_cluster_not_found():
             enabled=True,
             cluster_uuid=cluster_uuid,
             aws_region="us-east-1",
+            aws_account_id="000000000000",
             provider_config="floci",
             environment_id=1,
             get_cluster_by_uuid=lambda _: None,
@@ -87,6 +118,7 @@ def test_validate_enabled_cluster_wrong_environment():
             enabled=True,
             cluster_uuid=uuid4(),
             aws_region="us-east-1",
+            aws_account_id="000000000000",
             provider_config="floci",
             environment_id=1,
             get_cluster_by_uuid=lambda _: _cluster(environment_id=2),
@@ -99,6 +131,7 @@ def test_validate_enabled_cluster_not_available():
             enabled=True,
             cluster_uuid=uuid4(),
             aws_region="sa-east-1",
+            aws_account_id="000000000000",
             provider_config="default",
             environment_id=1,
             get_cluster_by_uuid=lambda _: _cluster(1, crossplane_available=False),
@@ -110,6 +143,7 @@ def test_resolve_disabled_context():
         enabled=False,
         cluster_uuid=None,
         aws_region="",
+        aws_account_id="",
         provider_config="",
         environment_id=1,
         get_cluster_by_uuid=lambda _: None,
@@ -127,6 +161,7 @@ def test_resolve_enabled_context():
         enabled=True,
         cluster_uuid=cluster_uuid,
         aws_region="us-east-1",
+        aws_account_id="310090716792",
         provider_config="floci",
         environment_id=5,
         get_cluster_by_uuid=lambda uid: cluster if uid == cluster_uuid else None,
@@ -135,6 +170,7 @@ def test_resolve_enabled_context():
     assert ctx.enabled is True
     assert ctx.cluster_uuid == cluster_uuid
     assert ctx.aws_region == "us-east-1"
+    assert ctx.aws_account_id == "310090716792"
     assert ctx.provider_config == "floci"
     assert ctx.cluster is cluster
 

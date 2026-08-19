@@ -42,6 +42,7 @@ def upgrade() -> None:
         ),
         sa.Column("cluster_uuid", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("aws_region", sa.String(), nullable=False, server_default=""),
+        sa.Column("aws_account_id", sa.String(), nullable=False, server_default=""),
         sa.Column("provider_config", sa.String(), nullable=False, server_default=""),
         sa.Column(
             "created_at",
