@@ -42,6 +42,7 @@ function Environments() {
   const [crossplaneModalOpen, setCrossplaneModalOpen] = useState(false)
   const [selectedEnvForCrossplane, setSelectedEnvForCrossplane] = useState<Environment | null>(null)
   const [crossplaneDraft, setCrossplaneDraft] = useState<EnvironmentCrossplaneConfig>(EMPTY_CROSSPLANE_CONFIG)
+  const [crossplaneFormError, setCrossplaneFormError] = useState<string | null>(null)
 
   const [formData, setFormData] = useState<EnvironmentCreate>({
     name: '',
@@ -123,7 +124,11 @@ function Environments() {
     selectedOrganizationUuid ?? undefined,
     selectedEnvForCrossplane?.uuid
   )
-  const { data: loadedCrossplaneConfig } = useCrossplaneConfig(
+  const {
+    data: loadedCrossplaneConfig,
+    isError: crossplaneLoadError,
+    error: crossplaneLoadErr,
+  } = useCrossplaneConfig(
     selectedOrganizationUuid ?? undefined,
     selectedEnvForCrossplane?.uuid
   )
@@ -131,8 +136,17 @@ function Environments() {
   useEffect(() => {
     if (loadedCrossplaneConfig) {
       setCrossplaneDraft(loadedCrossplaneConfig)
+      setCrossplaneFormError(null)
     }
   }, [loadedCrossplaneConfig])
+
+  useEffect(() => {
+    if (!crossplaneModalOpen || !crossplaneLoadError) return
+    const detail =
+      (crossplaneLoadErr as { response?: { data?: { detail?: string } } })?.response?.data
+        ?.detail || 'Failed to load Crossplane config'
+    setCrossplaneFormError(detail)
+  }, [crossplaneModalOpen, crossplaneLoadError, crossplaneLoadErr])
 
   const availableCrossplaneClusters = (envForCrossplane?.clusters ?? []).filter(
     (cluster) => cluster.crossplane_available
@@ -141,6 +155,7 @@ function Environments() {
   const openCrossplaneModal = (env: Environment) => {
     setSelectedEnvForCrossplane(env)
     setCrossplaneDraft(EMPTY_CROSSPLANE_CONFIG)
+    setCrossplaneFormError(null)
     setCrossplaneModalOpen(true)
   }
 
@@ -148,11 +163,13 @@ function Environments() {
     setCrossplaneModalOpen(false)
     setSelectedEnvForCrossplane(null)
     setCrossplaneDraft(EMPTY_CROSSPLANE_CONFIG)
+    setCrossplaneFormError(null)
     updateCrossplaneMutation.reset()
   }
 
   const handleSaveCrossplane = () => {
     if (!selectedEnvForCrossplane) return
+    setCrossplaneFormError(null)
     updateCrossplaneMutation.mutate(
       { environmentUuid: selectedEnvForCrossplane.uuid, config: crossplaneDraft },
       {
@@ -162,13 +179,10 @@ function Environments() {
           setTimeout(() => setNotification(null), 5000)
         },
         onError: (err: unknown) => {
-          setNotification({
-            type: 'error',
-            message:
-              (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-              'Error saving Crossplane config',
-          })
-          setTimeout(() => setNotification(null), 5000)
+          setCrossplaneFormError(
+            (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+              'Error saving Crossplane config'
+          )
         },
       }
     )
@@ -512,6 +526,18 @@ function Environments() {
               </button>
             </div>
             <div className="p-5 space-y-4">
+              {crossplaneFormError ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 flex items-start justify-between gap-2">
+                  <span>{crossplaneFormError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setCrossplaneFormError(null)}
+                    className="text-red-500 hover:text-red-700 shrink-0"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : null}
               <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
                 <input
                   type="checkbox"
