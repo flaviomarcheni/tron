@@ -11,6 +11,7 @@ from app.crossplane.api.crossplane_dto import (
 )
 from app.crossplane.core.crossplane_service import CrossplaneService
 from app.crossplane.infra.crossplane_config_repository import CrossplaneConfigRepository
+from app.crossplane.infra.k8s_crossplane_probe import probe_crossplane_health
 from app.environments.infra.environment_repository import EnvironmentRepository
 from app.organizations.api.dependencies.organization_context import (
     getOrganizationContext,
@@ -37,6 +38,7 @@ def get_crossplane_service(
         CrossplaneConfigRepository(database_session),
         EnvironmentRepository(database_session),
         cluster_repository.find_by_uuid,
+        probe_crossplane_health,
     )
 
 

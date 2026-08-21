@@ -35,21 +35,6 @@ def validate_cluster_create_dto(dto) -> None:
         raise ValueError("Environment UUID is required")
 
 
-def validate_cluster_update_dto(dto) -> None:
-    """Validate cluster update DTO. Token is optional (keeps existing when omitted)."""
-    if not dto.name or not dto.name.strip():
-        raise ValueError("Cluster name is required and cannot be empty")
-
-    if not dto.api_address or not dto.api_address.strip():
-        raise ValueError("Cluster API address is required and cannot be empty")
-
-    if dto.token is not None and not dto.token.strip():
-        raise ValueError("Cluster token cannot be empty when provided")
-
-    if not dto.environment_uuid:
-        raise ValueError("Environment UUID is required")
-
-
 def validate_cluster_exists(repository: ClusterRepository, uuid: UUID) -> None:
     """Validate that cluster exists. Raises ClusterNotFoundError if not found."""
     cluster = repository.find_by_uuid(uuid)

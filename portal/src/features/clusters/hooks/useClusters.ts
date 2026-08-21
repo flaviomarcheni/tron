@@ -63,7 +63,7 @@ export const useUpdateCluster = (organizationUuid: string | undefined) => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ uuid, data }: { uuid: string; data: import('../types').ClusterUpdate }) => {
+    mutationFn: ({ uuid, data }: { uuid: string; data: import('../types').ClusterCreate }) => {
       if (!organizationUuid) {
         throw new Error('Organization UUID is required')
       }

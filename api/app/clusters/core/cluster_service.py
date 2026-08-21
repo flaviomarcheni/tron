@@ -1,20 +1,19 @@
 import json
+from collections.abc import Callable
 from uuid import uuid4, UUID
-from typing import List
+from typing import Any, List
 from fastapi import HTTPException
 
 from app.clusters.infra.cluster_repository import ClusterRepository
 from app.clusters.infra.cluster_model import Cluster as ClusterModel
 from app.clusters.api.cluster_dto import (
     ClusterCreate,
-    ClusterUpdate,
     ClusterResponse,
     ClusterResponseWithValidation,
     ClusterCompletedResponse,
 )
 from app.clusters.core.cluster_validators import (
     validate_cluster_create_dto,
-    validate_cluster_update_dto,
     validate_cluster_exists,
     validate_environment_exists,
     ClusterConnectionError,
@@ -88,8 +87,14 @@ def get_all_gateway_references_from_cluster(cluster: ClusterModel) -> dict:
 class ClusterService:
     """Business logic for clusters. No direct database access."""
 
-    def __init__(self, repository: ClusterRepository):
+    def __init__(
+        self,
+        repository: ClusterRepository,
+        probe_crossplane: Callable[[str, str], dict[str, Any]],
+    ):
         self.repository = repository
+        # Crossplane health is owned by the Crossplane BC; injected at composition root.
+        self.probe_crossplane = probe_crossplane
 
     def create_cluster(self, dto: ClusterCreate) -> ClusterResponse:
         """Create a new cluster."""
@@ -104,24 +109,25 @@ class ClusterService:
 
         return self.repository.create(cluster)
 
-    def update_cluster(self, uuid: UUID, dto: ClusterUpdate) -> ClusterResponse:
+    def update_cluster(self, uuid: UUID, dto: ClusterCreate) -> ClusterResponse:
         """Update an existing cluster."""
-        validate_cluster_update_dto(dto)
+        validate_cluster_create_dto(dto)
         validate_cluster_exists(self.repository, uuid)
         validate_environment_exists(self.repository, dto.environment_uuid)
 
+        # Validate Kubernetes connection
+        self._validate_cluster_connection(dto.api_address, dto.token)
+
         cluster = self.repository.find_by_uuid(uuid)
-        token = dto.token.strip() if dto.token and dto.token.strip() else cluster.token
-
-        # Validate Kubernetes connection with resolved credentials
-        self._validate_cluster_connection(dto.api_address, token)
-
         environment = self.repository.find_environment_by_uuid(dto.environment_uuid)
 
         cluster.name = dto.name
         cluster.api_address = dto.api_address
-        cluster.token = token
-        cluster.crossplane_available = dto.crossplane_available
+        cluster.token = dto.token
+        cluster.private_gateway_namespace = dto.private_gateway_namespace or None
+        cluster.private_gateway_name = dto.private_gateway_name or None
+        cluster.public_gateway_namespace = dto.public_gateway_namespace or None
+        cluster.public_gateway_name = dto.public_gateway_name or None
         cluster.environment_id = environment.id
 
         return self.repository.update(cluster)
@@ -213,7 +219,6 @@ class ClusterService:
             private_gateway_name=dto.private_gateway_name or None,
             public_gateway_namespace=dto.public_gateway_namespace or None,
             public_gateway_name=dto.public_gateway_name or None,
-            crossplane_available=dto.crossplane_available,
             environment_id=environment_id,
         )
 
@@ -244,7 +249,6 @@ class ClusterService:
             uuid=cluster.uuid,
             name=cluster.name,
             api_address=cluster.api_address,
-            crossplane_available=bool(cluster.crossplane_available),
             environment=cluster.environment,
             detail=connection_message,
             gateway={
@@ -254,6 +258,7 @@ class ClusterService:
                 },
                 "reference": gateway_refs,
             },
+            crossplane=self.probe_crossplane(cluster.api_address, cluster.token),
         )
 
     def _build_cluster_completed_response(
@@ -269,6 +274,9 @@ class ClusterService:
             k8s_client.get_gateway_api_resources() if gateway_api_available else []
         )
         gateway_refs = get_all_gateway_references_from_cluster(cluster)
+        crossplane_status = self.probe_crossplane(
+            cluster.api_address, cluster.token
+        )
 
         # Get available CPU and memory from cluster
         try:
@@ -282,7 +290,6 @@ class ClusterService:
             uuid=cluster.uuid,
             name=cluster.name,
             api_address=cluster.api_address,
-            crossplane_available=bool(cluster.crossplane_available),
             available_cpu=available_cpu,
             available_memory=available_memory,
             environment=cluster.environment,
@@ -293,4 +300,5 @@ class ClusterService:
                 },
                 "reference": gateway_refs,
             },
+            crossplane=crossplane_status,
         )

@@ -20,11 +20,21 @@ export interface GatewayFeatures {
   reference: GatewayReferences
 }
 
+export interface CrossplaneProviderStatus {
+  name: string
+  healthy: boolean
+}
+
+export interface CrossplaneFeatures {
+  available: boolean
+  healthy: boolean
+  providers: CrossplaneProviderStatus[]
+}
+
 export interface Cluster {
   uuid: string
   name: string
   api_address: string
-  crossplane_available?: boolean
   environment_uuid: string
   environment?: Environment
   detail?: {
@@ -35,6 +45,7 @@ export interface Cluster {
     }
   }
   gateway?: GatewayFeatures
+  crossplane?: CrossplaneFeatures
   created_at: string
   updated_at: string
 }
@@ -44,18 +55,8 @@ export interface ClusterCreate {
   api_address: string
   token: string
   environment_uuid: string
-  crossplane_available?: boolean
   private_gateway_namespace?: string
   private_gateway_name?: string
   public_gateway_namespace?: string
   public_gateway_name?: string
 }
-
-export interface ClusterUpdate {
-  name: string
-  api_address: string
-  token?: string
-  environment_uuid: string
-  crossplane_available?: boolean
-}
-

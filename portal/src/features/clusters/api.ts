@@ -1,5 +1,5 @@
 import { api } from '../../shared/api'
-import type { Cluster, ClusterCreate, ClusterUpdate } from './types'
+import type { Cluster, ClusterCreate } from './types'
 
 export const clustersApi = {
   list: async (organizationUuid: string): Promise<Cluster[]> => {
@@ -32,7 +32,7 @@ export const clustersApi = {
     const response = await api.post<Cluster>(`/organizations/${organizationUuid}/clusters/`, data)
     return response.data
   },
-  update: async (organizationUuid: string, uuid: string, data: ClusterUpdate): Promise<Cluster> => {
+  update: async (organizationUuid: string, uuid: string, data: ClusterCreate): Promise<Cluster> => {
     if (!organizationUuid) {
       throw new Error('Organization UUID is required')
     }

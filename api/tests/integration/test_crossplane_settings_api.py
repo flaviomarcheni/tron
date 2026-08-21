@@ -41,7 +41,7 @@ def test_environment_with_settings(test_db, admin_user, test_organization):
 
 @pytest.fixture
 def crossplane_cluster(test_db, test_environment_with_settings):
-    """Cluster marked available for Crossplane."""
+    """Cluster in the environment (health verified live on Crossplane enable)."""
     cluster_repo = ClusterRepository(test_db)
     cluster = cluster_repo.create(
         Cluster(
@@ -50,7 +50,6 @@ def crossplane_cluster(test_db, test_environment_with_settings):
             api_address="https://k8s-crossplane.example.com",
             token="token",
             environment_id=test_environment_with_settings.id,
-            crossplane_available=True,
         )
     )
     test_db.commit()
@@ -84,13 +83,20 @@ def test_get_crossplane_config_defaults(
     assert data["provider_config"] == ""
 
 
+@patch("app.crossplane.api.crossplane_handlers.probe_crossplane_health")
 def test_update_crossplane_config_success(
+    mock_probe,
     client,
     admin_token,
     test_organization,
     test_environment_with_settings,
     crossplane_cluster,
 ):
+    mock_probe.return_value = {
+        "available": True,
+        "healthy": True,
+        "providers": [{"name": "provider-aws-sqs", "healthy": True}],
+    }
     response = client.put(
         _crossplane_url(test_organization, test_environment_with_settings),
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -110,6 +116,37 @@ def test_update_crossplane_config_success(
     assert data["aws_region"] == "us-east-1"
     assert data["aws_account_id"] == "000000000000"
     assert data["provider_config"] == "floci"
+    mock_probe.assert_called_once()
+
+
+@patch("app.crossplane.api.crossplane_handlers.probe_crossplane_health")
+def test_update_crossplane_config_rejects_unhealthy_cluster(
+    mock_probe,
+    client,
+    admin_token,
+    test_organization,
+    test_environment_with_settings,
+    crossplane_cluster,
+):
+    mock_probe.return_value = {
+        "available": True,
+        "healthy": False,
+        "providers": [{"name": "provider-aws-sqs", "healthy": False}],
+    }
+    response = client.put(
+        _crossplane_url(test_organization, test_environment_with_settings),
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "enabled": True,
+            "cluster_uuid": str(crossplane_cluster.uuid),
+            "aws_region": "us-east-1",
+            "aws_account_id": "000000000000",
+            "provider_config": "floci",
+        },
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "not healthy" in response.json()["detail"].lower()
 
 
 def test_update_crossplane_config_invalid_region(
@@ -135,42 +172,6 @@ def test_update_crossplane_config_invalid_region(
     assert "aws_region" in response.json()["detail"]
 
 
-def test_update_crossplane_config_cluster_not_available(
-    client,
-    admin_token,
-    test_organization,
-    test_environment_with_settings,
-    test_db,
-):
-    cluster_repo = ClusterRepository(test_db)
-    cluster = cluster_repo.create(
-        Cluster(
-            uuid=uuid4(),
-            name="unavailable-cluster",
-            api_address="https://k8s-unavailable.example.com",
-            token="token",
-            environment_id=test_environment_with_settings.id,
-            crossplane_available=False,
-        )
-    )
-    test_db.commit()
-
-    response = client.put(
-        _crossplane_url(test_organization, test_environment_with_settings),
-        headers={"Authorization": f"Bearer {admin_token}"},
-        json={
-            "enabled": True,
-            "cluster_uuid": str(cluster.uuid),
-            "aws_region": "us-east-1",
-            "aws_account_id": "000000000000",
-            "provider_config": "floci",
-        },
-    )
-
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "crossplane_available" in response.json()["detail"]
-
-
 def test_environment_settings_do_not_include_crossplane_keys(
     client,
     admin_token,
@@ -192,7 +193,7 @@ def test_environment_settings_do_not_include_crossplane_keys(
     cluster = data["clusters"][0]
     assert cluster["uuid"] == str(crossplane_cluster.uuid)
     assert cluster["name"] == crossplane_cluster.name
-    assert cluster["crossplane_available"] is True
+    assert "crossplane_available" not in cluster
     setting_keys = {item["key"] for item in data["settings"]}
     assert "crossplane_enabled" not in setting_keys
     assert "crossplane_cluster_uuid" not in setting_keys
@@ -202,7 +203,7 @@ def test_environment_settings_do_not_include_crossplane_keys(
 
 
 @patch("app.clusters.core.cluster_service.K8sClient")
-def test_create_cluster_with_crossplane_available(
+def test_create_cluster_ignores_legacy_crossplane_available_field(
     mock_k8s_client,
     client,
     admin_token,
@@ -224,9 +225,8 @@ def test_create_cluster_with_crossplane_available(
             "api_address": "https://k8s.example.com",
             "token": "test-token",
             "environment_uuid": str(test_environment_with_settings.uuid),
-            "crossplane_available": True,
         },
     )
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json()["crossplane_available"] is True
+    assert "crossplane_available" not in response.json()

@@ -9,7 +9,6 @@ export const clusterCreateSchema = z.object({
   private_gateway_name: z.string().max(253, 'Name must be less than 253 characters').optional().or(z.literal('')),
   public_gateway_namespace: z.string().max(253, 'Namespace must be less than 253 characters').optional().or(z.literal('')),
   public_gateway_name: z.string().max(253, 'Name must be less than 253 characters').optional().or(z.literal('')),
-  crossplane_available: z.boolean().optional(),
 })
 
 export type ClusterCreateInput = z.infer<typeof clusterCreateSchema>

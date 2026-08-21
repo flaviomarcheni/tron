@@ -9,6 +9,7 @@ from app.crossplane.api.crossplane_dto import (
 from app.crossplane.core.crossplane_validators import (
     CrossplaneContext,
     resolve_crossplane_context_for_sync,
+    validate_crossplane_cluster_health,
     validate_crossplane_config,
 )
 from app.crossplane.infra.crossplane_config_model import EnvironmentCrossplaneConfig
@@ -24,10 +25,12 @@ class CrossplaneService:
         repository: CrossplaneConfigRepository,
         environment_repository: EnvironmentRepository,
         get_cluster_by_uuid: Callable[[UUID], Any],
+        probe_crossplane: Callable[[str, str], dict[str, Any]],
     ):
         self.repository = repository
         self.environment_repository = environment_repository
         self.get_cluster_by_uuid = get_cluster_by_uuid
+        self.probe_crossplane = probe_crossplane
 
     def get_config(
         self, environment_uuid: UUID, organization_id: int
@@ -52,6 +55,9 @@ class CrossplaneService:
             environment.id,
             self.get_cluster_by_uuid,
         )
+        if dto.enabled:
+            cluster = self.get_cluster_by_uuid(dto.cluster_uuid)
+            validate_crossplane_cluster_health(cluster, self.probe_crossplane)
 
         row = self.repository.find_by_environment_id(environment.id)
         aws_region = dto.aws_region.strip()

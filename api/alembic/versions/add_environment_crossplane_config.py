@@ -1,7 +1,7 @@
 """add_environment_crossplane_config
 
 Revision ID: env_crossplane_config
-Revises: add_crossplane_platform
+Revises: env_settings_single_json
 Create Date: 2026-08-19
 
 Store Crossplane config as a dedicated environment-scoped resource
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "env_crossplane_config"
-down_revision: Union[str, None] = "add_crossplane_platform"
+down_revision: Union[str, None] = "env_settings_single_json"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

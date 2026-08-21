@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { X, Trash2, Plus, Settings, Cloud } from 'lucide-react'
 import {
   useEnvironments,
@@ -27,6 +28,7 @@ function Environments() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const { selectedOrganizationUuid, isLoading: isLoadingOrg } = useOrganization()
+  const queryClient = useQueryClient()
 
   const { data: environments = [], isLoading } = useEnvironments(selectedOrganizationUuid)
   const createMutation = useCreateEnvironment(selectedOrganizationUuid)
@@ -126,12 +128,16 @@ function Environments() {
   )
   const {
     data: loadedCrossplaneConfig,
+    isPending: crossplaneConfigPending,
     isError: crossplaneLoadError,
     error: crossplaneLoadErr,
   } = useCrossplaneConfig(
     selectedOrganizationUuid ?? undefined,
     selectedEnvForCrossplane?.uuid
   )
+  // Block save until GET finishes — avoids wiping config with EMPTY draft
+  const canSaveCrossplane =
+    !!loadedCrossplaneConfig && !crossplaneConfigPending && !crossplaneLoadError
 
   useEffect(() => {
     if (loadedCrossplaneConfig) {
@@ -148,14 +154,17 @@ function Environments() {
     setCrossplaneFormError(detail)
   }, [crossplaneModalOpen, crossplaneLoadError, crossplaneLoadErr])
 
-  const availableCrossplaneClusters = (envForCrossplane?.clusters ?? []).filter(
-    (cluster) => cluster.crossplane_available
-  )
+  const availableCrossplaneClusters = envForCrossplane?.clusters ?? []
 
   const openCrossplaneModal = (env: Environment) => {
     setSelectedEnvForCrossplane(env)
-    setCrossplaneDraft(EMPTY_CROSSPLANE_CONFIG)
     setCrossplaneFormError(null)
+    const cached = queryClient.getQueryData<EnvironmentCrossplaneConfig>([
+      'crossplane-config',
+      selectedOrganizationUuid,
+      env.uuid,
+    ])
+    setCrossplaneDraft(cached ?? EMPTY_CROSSPLANE_CONFIG)
     setCrossplaneModalOpen(true)
   }
 
@@ -168,7 +177,7 @@ function Environments() {
   }
 
   const handleSaveCrossplane = () => {
-    if (!selectedEnvForCrossplane) return
+    if (!selectedEnvForCrossplane || !canSaveCrossplane) return
     setCrossplaneFormError(null)
     updateCrossplaneMutation.mutate(
       { environmentUuid: selectedEnvForCrossplane.uuid, config: crossplaneDraft },
@@ -538,6 +547,13 @@ function Environments() {
                   </button>
                 </div>
               ) : null}
+              {!canSaveCrossplane && !crossplaneLoadError ? (
+                <p className="text-sm text-slate-500">Loading Crossplane config…</p>
+              ) : null}
+              <fieldset
+                disabled={!canSaveCrossplane}
+                className="space-y-4 disabled:opacity-60"
+              >
               <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
                 <input
                   type="checkbox"
@@ -566,7 +582,7 @@ function Environments() {
                     {crossplaneDraft.enabled
                       ? availableCrossplaneClusters.length
                         ? 'Select cluster'
-                        : 'No Crossplane clusters available'
+                        : 'No clusters in this environment'
                       : 'Enable Crossplane first'}
                   </option>
                   {availableCrossplaneClusters.map((cluster) => (
@@ -576,7 +592,8 @@ function Environments() {
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-slate-500">
-                  Only clusters marked as Crossplane available in this environment.
+                  Clusters in this environment. Crossplane must be healthy on the
+                  selected cluster (verified on save).
                 </p>
               </div>
               <div>
@@ -625,6 +642,7 @@ function Environments() {
                   ClusterProviderConfig name used by Crossplane in this environment.
                 </p>
               </div>
+              </fieldset>
               <div className="flex justify-end gap-2.5 pt-2">
                 <button
                   type="button"
@@ -636,10 +654,14 @@ function Environments() {
                 <button
                   type="button"
                   onClick={handleSaveCrossplane}
-                  disabled={updateCrossplaneMutation.isPending}
+                  disabled={!canSaveCrossplane || updateCrossplaneMutation.isPending}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-soft text-sm font-medium disabled:opacity-50"
                 >
-                  {updateCrossplaneMutation.isPending ? 'Saving...' : 'Save'}
+                  {updateCrossplaneMutation.isPending
+                    ? 'Saving...'
+                    : !canSaveCrossplane && !crossplaneLoadError
+                      ? 'Loading...'
+                      : 'Save'}
                 </button>
               </div>
             </div>

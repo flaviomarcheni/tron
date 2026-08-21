@@ -7,7 +7,6 @@ from app.clusters.infra.cluster_repository import ClusterRepository
 from app.clusters.core.cluster_service import ClusterService
 from app.clusters.api.cluster_dto import (
     ClusterCreate,
-    ClusterUpdate,
     ClusterResponse,
     ClusterResponseWithValidation,
     ClusterCompletedResponse,
@@ -17,6 +16,7 @@ from app.clusters.core.cluster_validators import (
     ClusterConnectionError,
     EnvironmentNotFoundError,
 )
+from app.crossplane.infra.k8s_crossplane_probe import probe_crossplane_health
 from app.environments.infra.environment_repository import EnvironmentRepository
 from app.environments.core.environment_service import EnvironmentService
 from app.organizations.api.dependencies.organization_context import (
@@ -45,7 +45,7 @@ router_env_clusters = APIRouter(
 def get_cluster_service(database_session: Session = Depends(get_db)) -> ClusterService:
     """Dependency to get ClusterService instance."""
     cluster_repository = ClusterRepository(database_session)
-    return ClusterService(cluster_repository)
+    return ClusterService(cluster_repository, probe_crossplane_health)
 
 
 def get_environment_service(
@@ -82,7 +82,7 @@ def create_cluster(
 def update_cluster(
     organization_uuid: UUID,
     uuid: UUID,
-    cluster: ClusterUpdate,
+    cluster: ClusterCreate,
     service: ClusterService = Depends(get_cluster_service),
     ctx: OrganizationAccessContext = Depends(getOrganizationContext),
 ):

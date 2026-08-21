@@ -8,7 +8,6 @@ export interface EnvironmentSettingItem {
 export interface EnvironmentClusterSummary {
   uuid: string
   name: string
-  crossplane_available: boolean
 }
 
 export interface Environment {

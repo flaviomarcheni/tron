@@ -223,7 +223,6 @@ class EnvironmentService:
                 EnvironmentClusterSummary(
                     uuid=cluster.uuid,
                     name=cluster.name,
-                    crossplane_available=bool(cluster.crossplane_available),
                 )
                 for cluster in environment.clusters
             ],

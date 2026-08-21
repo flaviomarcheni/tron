@@ -33,3 +33,16 @@ class CrossplaneConfigResponse(BaseModel):
     provider_config: str = ""
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CrossplaneProviderStatus(BaseModel):
+    name: str = ""
+    healthy: bool = False
+
+
+class CrossplaneFeatures(BaseModel):
+    """Live Crossplane probe status owned by the Crossplane bounded context."""
+
+    available: bool = False
+    healthy: bool = False
+    providers: list[CrossplaneProviderStatus] = []

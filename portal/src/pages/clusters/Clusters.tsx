@@ -3,7 +3,7 @@ import { X, Trash2, Plus, Info, Edit, CheckCircle, XCircle } from 'lucide-react'
 import { useClusters, useCreateCluster, useUpdateCluster, useDeleteCluster } from '../../features/clusters'
 import { useEnvironments } from '../../features/environments'
 import { useOrganization } from '../../contexts/OrganizationContext'
-import type { Cluster, ClusterCreate, ClusterUpdate } from '../../features/clusters'
+import type { Cluster, ClusterCreate } from '../../features/clusters'
 import { DataTable, Breadcrumbs, PageHeader } from '../../shared/components'
 
 function Clusters() {
@@ -22,7 +22,6 @@ function Clusters() {
     api_address: '',
     token: '',
     environment_uuid: '',
-    crossplane_available: false,
     private_gateway_namespace: '',
     private_gateway_name: '',
     public_gateway_namespace: '',
@@ -39,7 +38,7 @@ function Clusters() {
       setNotification({ type: 'success', message: 'Cluster created successfully' })
       setIsOpen(false)
       setEditingCluster(null)
-      setFormData({ name: '', api_address: '', token: '', environment_uuid: '', crossplane_available: false, private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
+      setFormData({ name: '', api_address: '', token: '', environment_uuid: '', private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
       setTimeout(() => setNotification(null), 5000)
       createMutation.reset()
     }
@@ -62,7 +61,7 @@ function Clusters() {
       setNotification({ type: 'success', message: 'Cluster updated successfully' })
       setIsOpen(false)
       setEditingCluster(null)
-      setFormData({ name: '', api_address: '', token: '', environment_uuid: '', crossplane_available: false, private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
+      setFormData({ name: '', api_address: '', token: '', environment_uuid: '', private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
       setTimeout(() => setNotification(null), 5000)
       updateMutation.reset()
     }
@@ -108,21 +107,20 @@ function Clusters() {
       return
     }
 
-    if (!editingCluster && !formData.token) {
+    if (!formData.token) {
       setNotification({ type: 'error', message: 'Token is required' })
       setTimeout(() => setNotification(null), 5000)
       return
     }
 
     if (editingCluster) {
-      const updateData: ClusterUpdate = {
+      // Always send environment_uuid and token in update
+      // Gateway configuration is not editable after creation
+      const updateData: ClusterCreate = {
         name: formData.name,
         api_address: formData.api_address,
+        token: formData.token,
         environment_uuid: formData.environment_uuid,
-        crossplane_available: formData.crossplane_available ?? false,
-      }
-      if (formData.token.trim()) {
-        updateData.token = formData.token.trim()
       }
       updateMutation.mutate({ uuid: editingCluster.uuid, data: updateData })
     } else {
@@ -143,9 +141,8 @@ function Clusters() {
     setFormData({
       name: cluster.name,
       api_address: cluster.api_address,
-      token: '',
+      token: '', // Token is not returned by API for security
       environment_uuid: environmentUuid,
-      crossplane_available: cluster.crossplane_available ?? false,
       private_gateway_namespace: cluster.gateway?.reference?.private?.namespace || '',
       private_gateway_name: cluster.gateway?.reference?.private?.name || '',
       public_gateway_namespace: cluster.gateway?.reference?.public?.namespace || '',
@@ -157,7 +154,7 @@ function Clusters() {
   const handleCloseModal = () => {
     setIsOpen(false)
     setEditingCluster(null)
-    setFormData({ name: '', api_address: '', token: '', environment_uuid: '', crossplane_available: false })
+    setFormData({ name: '', api_address: '', token: '', environment_uuid: '' })
   }
 
   const handleDelete = (uuid: string) => {
@@ -235,7 +232,7 @@ function Clusters() {
         <button
           onClick={() => {
             setEditingCluster(null)
-            setFormData({ name: '', api_address: '', token: '', environment_uuid: '', crossplane_available: false, private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
+            setFormData({ name: '', api_address: '', token: '', environment_uuid: '', private_gateway_namespace: '', private_gateway_name: '', public_gateway_namespace: '', public_gateway_name: '' })
             setIsOpen(true)
           }}
           className="btn-primary flex items-center gap-2"
@@ -348,6 +345,47 @@ function Clusters() {
               )
             },
           },
+          {
+            key: 'crossplane',
+            label: 'Crossplane',
+            render: (cluster) => {
+              const crossplane = cluster.crossplane
+              const available = crossplane?.available ?? false
+              const healthy = crossplane?.healthy ?? false
+              const providers = crossplane?.providers ?? []
+
+              let icon = <XCircle size={16} className="text-slate-400" />
+              let label = 'Not Available'
+              let labelClass = 'text-sm text-slate-500'
+
+              if (available && healthy) {
+                icon = <CheckCircle size={16} className="text-green-600" />
+                label = 'Available'
+                labelClass = 'text-sm text-green-700 font-medium'
+              } else if (available) {
+                icon = <XCircle size={16} className="text-amber-500" />
+                label = 'Unhealthy'
+                labelClass = 'text-sm text-amber-700 font-medium'
+              }
+
+              return (
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    {icon}
+                    <span className={labelClass}>{label}</span>
+                  </div>
+                  {available && providers.length > 0 && (
+                    <div className="text-xs text-slate-600 ml-6">
+                      Providers:{' '}
+                      {providers
+                        .map((p) => `${p.name}${p.healthy ? '' : ' (unhealthy)'}`)
+                        .join(', ')}
+                    </div>
+                  )}
+                </div>
+              )
+            },
+          },
         ]}
         data={clusters}
         isLoading={isLoading}
@@ -416,11 +454,11 @@ function Clusters() {
                   onChange={(e) => setFormData({ ...formData, token: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-all text-sm"
                   placeholder="ServiceAccount token"
-                  required={!editingCluster}
+                  required
                 />
                 {editingCluster && (
                   <p className="mt-1 text-xs text-slate-500">
-                    Leave blank to keep the current token.
+                    Enter the token again. If you don't want to change it, use the same current token.
                   </p>
                 )}
               </div>
@@ -447,22 +485,6 @@ function Clusters() {
                     Environment cannot be changed after creation.
                   </p>
                 )}
-              </div>
-              <div>
-                <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={formData.crossplane_available ?? false}
-                    onChange={(e) =>
-                      setFormData({ ...formData, crossplane_available: e.target.checked })
-                    }
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  Crossplane available
-                </label>
-                <p className="mt-1 text-xs text-slate-500">
-                  Mark this cluster as eligible for Crossplane-managed resources in its environment.
-                </p>
               </div>
 
               <div className="flex justify-end gap-2.5 pt-3">

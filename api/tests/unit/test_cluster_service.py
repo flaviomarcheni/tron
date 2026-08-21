@@ -4,7 +4,7 @@ from uuid import uuid4, UUID
 from unittest.mock import MagicMock, patch
 from app.clusters.core.cluster_service import ClusterService
 from app.clusters.infra.cluster_repository import ClusterRepository
-from app.clusters.api.cluster_dto import ClusterCreate, ClusterUpdate
+from app.clusters.api.cluster_dto import ClusterCreate
 from app.clusters.core.cluster_validators import (
     ClusterNotFoundError,
     ClusterConnectionError,
@@ -19,9 +19,17 @@ def mock_repository():
 
 
 @pytest.fixture
-def cluster_service(mock_repository):
+def mock_probe_crossplane():
+    """Crossplane BC probe injected into ClusterService."""
+    return MagicMock(
+        return_value={"available": False, "healthy": False, "providers": []}
+    )
+
+
+@pytest.fixture
+def cluster_service(mock_repository, mock_probe_crossplane):
     """Create ClusterService instance."""
-    return ClusterService(mock_repository)
+    return ClusterService(mock_repository, mock_probe_crossplane)
 
 
 @pytest.fixture
@@ -110,7 +118,7 @@ def test_create_cluster_connection_error(cluster_service, mock_repository, mock_
 def test_update_cluster_success(cluster_service, mock_repository, mock_environment, mock_cluster):
     """Test successful cluster update."""
     cluster_uuid = mock_cluster.uuid
-    dto = ClusterUpdate(
+    dto = ClusterCreate(
         name="updated-cluster",
         api_address="https://k8s-updated.example.com",
         token="updated-token",
@@ -135,41 +143,10 @@ def test_update_cluster_success(cluster_service, mock_repository, mock_environme
         mock_repository.update.assert_called_once()
 
 
-def test_update_cluster_keeps_existing_token_when_omitted(
-    cluster_service, mock_repository, mock_environment, mock_cluster
-):
-    """Test cluster update without token keeps the stored token."""
-    mock_cluster.token = "existing-token"
-    cluster_uuid = mock_cluster.uuid
-    dto = ClusterUpdate(
-        name="updated-cluster",
-        api_address="https://k8s-updated.example.com",
-        environment_uuid=mock_environment.uuid,
-        crossplane_available=True,
-    )
-
-    updated_cluster = MagicMock()
-    updated_cluster.uuid = cluster_uuid
-
-    mock_repository.find_by_uuid.return_value = mock_cluster
-    mock_repository.find_environment_by_uuid.return_value = mock_environment
-    mock_repository.update.return_value = updated_cluster
-
-    with patch.object(cluster_service, "_validate_cluster_connection") as mock_validate:
-        result = cluster_service.update_cluster(cluster_uuid, dto)
-
-        assert result == updated_cluster
-        assert mock_cluster.token == "existing-token"
-        assert mock_cluster.crossplane_available is True
-        mock_validate.assert_called_once_with(
-            dto.api_address, "existing-token"
-        )
-
-
 def test_update_cluster_not_found(cluster_service, mock_repository, mock_environment):
     """Test updating non-existent cluster."""
     cluster_uuid = uuid4()
-    dto = ClusterUpdate(
+    dto = ClusterCreate(
         name="updated-cluster",
         api_address="https://k8s.example.com",
         token="test-token",
@@ -275,3 +252,40 @@ def test_validate_cluster_connection_failure(cluster_service):
 
         with pytest.raises(ClusterConnectionError):
             cluster_service._validate_cluster_connection(api_address, token)
+
+
+def test_build_cluster_response_includes_live_crossplane_status(
+    cluster_service, mock_cluster, mock_environment, mock_probe_crossplane
+):
+    """List/detail responses use the injected Crossplane BC probe."""
+    mock_cluster.token = "test-token"
+    mock_cluster.api_address = "https://k8s.example.com"
+    mock_cluster.environment = mock_environment
+    mock_cluster.private_gateway_namespace = None
+    mock_cluster.private_gateway_name = None
+    mock_cluster.public_gateway_namespace = None
+    mock_cluster.public_gateway_name = None
+    mock_probe_crossplane.return_value = {
+        "available": True,
+        "healthy": False,
+        "providers": [{"name": "provider-aws", "healthy": False}],
+    }
+
+    with patch("app.clusters.core.cluster_service.K8sClient") as mock_k8s_client_class:
+        mock_k8s_client = MagicMock()
+        mock_k8s_client.validate_connection.return_value = (
+            True,
+            {"status": "ok", "message": "ok"},
+        )
+        mock_k8s_client.check_api_available.return_value = False
+        mock_k8s_client_class.return_value = mock_k8s_client
+
+        result = cluster_service._build_cluster_response_with_validation(mock_cluster)
+
+        assert result.crossplane.available is True
+        assert result.crossplane.healthy is False
+        assert result.crossplane.providers[0].name == "provider-aws"
+        mock_probe_crossplane.assert_called_once_with(
+            mock_cluster.api_address, mock_cluster.token
+        )
+        mock_k8s_client.check_crossplane_status.assert_not_called()

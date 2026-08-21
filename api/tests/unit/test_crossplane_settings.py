@@ -6,6 +6,7 @@ import pytest
 
 from app.crossplane.core.crossplane_validators import (
     resolve_crossplane_context_for_sync,
+    validate_crossplane_cluster_health,
     validate_crossplane_config,
 )
 from app.environments.core.environment_settings_defaults import (
@@ -13,10 +14,9 @@ from app.environments.core.environment_settings_defaults import (
 )
 
 
-def _cluster(environment_id: int, crossplane_available: bool = True):
+def _cluster(environment_id: int):
     cluster = MagicMock()
     cluster.environment_id = environment_id
-    cluster.crossplane_available = crossplane_available
     cluster.uuid = uuid4()
     return cluster
 
@@ -125,16 +125,47 @@ def test_validate_enabled_cluster_wrong_environment():
         )
 
 
-def test_validate_enabled_cluster_not_available():
-    with pytest.raises(ValueError, match="crossplane_available"):
-        validate_crossplane_config(
-            enabled=True,
-            cluster_uuid=uuid4(),
-            aws_region="sa-east-1",
-            aws_account_id="000000000000",
-            provider_config="default",
-            environment_id=1,
-            get_cluster_by_uuid=lambda _: _cluster(1, crossplane_available=False),
+def test_validate_cluster_health_ok():
+    cluster = _cluster(1)
+    cluster.api_address = "https://k8s.example.com"
+    cluster.token = "token"
+    validate_crossplane_cluster_health(
+        cluster,
+        probe_crossplane=lambda *_: {
+            "available": True,
+            "healthy": True,
+            "providers": [{"name": "provider-aws-sqs", "healthy": True}],
+        },
+    )
+
+
+def test_validate_cluster_health_not_available():
+    cluster = _cluster(1)
+    cluster.api_address = "https://k8s.example.com"
+    cluster.token = "token"
+    with pytest.raises(ValueError, match="not available"):
+        validate_crossplane_cluster_health(
+            cluster,
+            probe_crossplane=lambda *_: {
+                "available": False,
+                "healthy": False,
+                "providers": [],
+            },
+        )
+
+
+def test_validate_cluster_health_unhealthy_providers():
+    cluster = _cluster(1)
+    cluster.api_address = "https://k8s.example.com"
+    cluster.token = "token"
+    with pytest.raises(ValueError, match="not healthy"):
+        validate_crossplane_cluster_health(
+            cluster,
+            probe_crossplane=lambda *_: {
+                "available": True,
+                "healthy": False,
+                "providers": [{"name": "provider-aws-sqs", "healthy": False}],
+            },
         )
 
 

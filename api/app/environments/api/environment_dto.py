@@ -46,7 +46,6 @@ class EnvironmentSettingsUpdate(BaseModel):
 class EnvironmentClusterSummary(BaseModel):
     uuid: UUID
     name: str
-    crossplane_available: bool = False
 
 
 class EnvironmentWithClusters(Environment):

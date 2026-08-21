@@ -33,7 +33,11 @@ def validate_crossplane_config(
     environment_id: int,
     get_cluster_by_uuid: Callable[[UUID], Any],
 ) -> None:
-    """Raise ValueError when Crossplane is enabled and config is invalid."""
+    """Raise ValueError when Crossplane is enabled and catalog config is invalid.
+
+    Catalog rules only (fields + cluster ownership). Live health is validated
+    separately on save via ``validate_crossplane_cluster_health``.
+    """
     if not enabled:
         return
 
@@ -63,8 +67,46 @@ def validate_crossplane_config(
         raise ValueError(f"Cluster with UUID {cluster_uuid} not found")
     if cluster.environment_id != environment_id:
         raise ValueError("Crossplane cluster must belong to the same environment")
-    if not getattr(cluster, "crossplane_available", False):
-        raise ValueError("Crossplane cluster must have crossplane_available enabled")
+
+
+def validate_crossplane_cluster_health(
+    cluster: Any,
+    probe_crossplane: Callable[[str, str], dict[str, Any]],
+) -> None:
+    """Raise ValueError when Crossplane is not installed/healthy on the cluster.
+
+    Called only when enabling Crossplane on an environment (save path), not on
+    every sync resolve — so temporary outages do not block catalog reads.
+    """
+    api_address = getattr(cluster, "api_address", None) or ""
+    token = getattr(cluster, "token", None) or ""
+    if not api_address or not token:
+        raise ValueError(
+            "Crossplane cluster is missing api_address or token; cannot verify health"
+        )
+
+    status = probe_crossplane(api_address, token)
+    available = bool(status.get("available"))
+    healthy = bool(status.get("healthy"))
+    if available and healthy:
+        return
+
+    providers = status.get("providers") or []
+    unhealthy = [
+        p.get("name", "?")
+        for p in providers
+        if isinstance(p, dict) and not p.get("healthy")
+    ]
+    if not available:
+        raise ValueError(
+            "Crossplane is not available on the selected cluster "
+            "(pkg.crossplane.io API group not found)"
+        )
+    detail = f" unhealthy providers: {', '.join(unhealthy)}" if unhealthy else ""
+    raise ValueError(
+        "Crossplane is not healthy on the selected cluster"
+        f"{detail}. Ensure providers are Healthy before enabling."
+    )
 
 
 def resolve_crossplane_context_for_sync(
